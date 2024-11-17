@@ -9,11 +9,30 @@ const client = new Client()
 
 const databases = new Databases(client);
 
+function logWithTimestamp(message) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${message}`);
+}
+
 async function exportSingleCollection(databaseId, collectionId) {
   try {
     let allDocuments = [];
     let lastId = null;
     let hasMore = true;
+    let totalDocuments = 0;
+    let exportedDocuments = 0;
+    const startTime = Date.now();
+
+    // Dapatkan total dokumen
+    const initialResponse = await databases.listDocuments(
+      databaseId,
+      collectionId,
+      [Query.limit(1)]
+    );
+    totalDocuments = initialResponse.total;
+
+    logWithTimestamp(`Waktu mulai: ${new Date(startTime).toISOString()}`);
+    logWithTimestamp(`Total dokumen: ${totalDocuments}`);
 
     while (hasMore) {
       const queries = [Query.limit(100)];
@@ -28,6 +47,16 @@ async function exportSingleCollection(databaseId, collectionId) {
       );
       allDocuments.push(...response.documents);
 
+      exportedDocuments += response.documents.length;
+      const progress = ((exportedDocuments / totalDocuments) * 100).toFixed(2);
+      const currentTime = Date.now();
+      const elapsedTime = (currentTime - startTime) / 1000; // dalam detik
+      logWithTimestamp(
+        `Progress: ${progress}% (${exportedDocuments}/${totalDocuments}) - Waktu: ${elapsedTime.toFixed(
+          2
+        )} detik`
+      );
+
       if (response.documents.length < 100) {
         hasMore = false;
       } else {
@@ -39,9 +68,16 @@ async function exportSingleCollection(databaseId, collectionId) {
       `${collectionId}_export.json`,
       JSON.stringify(allDocuments, null, 2)
     );
-    console.log(`Ekspor selesai. Data disimpan di ${collectionId}_export.json`);
+
+    const endTime = Date.now();
+    const totalTime = (endTime - startTime) / 1000; // dalam detik
+    logWithTimestamp(
+      `Ekspor selesai. Data disimpan di ${collectionId}_export.json`
+    );
+    logWithTimestamp(`Waktu selesai: ${new Date(endTime).toISOString()}`);
+    logWithTimestamp(`Total waktu ekspor: ${totalTime.toFixed(2)} detik`);
   } catch (error) {
-    console.error("Terjadi kesalahan saat mengekspor:", error);
+    logWithTimestamp(`Terjadi kesalahan saat mengekspor: ${error.message}`);
   }
 }
 
@@ -49,7 +85,7 @@ async function exportSingleCollection(databaseId, collectionId) {
 const [, , databaseId, collectionId] = process.argv;
 
 if (!databaseId || !collectionId) {
-  console.error("Penggunaan: node export.js [DATABASE_ID] [COLLECTION_ID]");
+  logWithTimestamp("Penggunaan: node export.js [DATABASE_ID] [COLLECTION_ID]");
   process.exit(1);
 }
 
